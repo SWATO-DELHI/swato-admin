@@ -1,0 +1,59 @@
+# Front-End Migration - Exact File Paths
+
+## PAGES TO MIGRATE
+src/app/restaurants/page.tsx
+src/app/restaurants/[id]/page.tsx
+src/app/restaurants/[id]/menu/page.tsx
+src/app/search/page.tsx
+src/app/orders/page.tsx
+src/app/customers/page.tsx
+src/app/drivers/page.tsx
+src/app/dashboard/page.tsx
+src/app/menu/ (entire directory if exists)
+src/app/settings/ (entire directory if exists)
+src/app/analytics/ (entire directory if exists)
+
+## COMPONENTS TO MIGRATE
+src/components/home/HeroSection.tsx
+src/components/home/FoodCategories.tsx
+src/components/home/BetterFoodSection.tsx
+src/components/home/DownloadAppSection.tsx
+src/components/home/RestaurantGrid.tsx
+src/components/layout/Header.tsx
+src/components/layout/Footer.tsx
+src/components/layout/Sidebar.tsx (if exists)
+src/components/cart/CartSidebar.tsx
+src/components/food/FoodCard.tsx
+src/components/auth/SignInModal.tsx
+src/components/auth/SignUpModal.tsx
+src/components/ui/location-input.tsx
+src/components/ui/sticky-footer.tsx
+src/components/restaurants/ (entire directory if exists)
+src/components/orders/ (entire directory if exists - customer version)
+src/components/customers/ (entire directory if exists - customer version)
+src/components/drivers/ (entire directory if exists - customer version)
+src/components/menu/ (entire directory if exists)
+src/components/settings/ (entire directory if exists - customer version)
+src/components/analytics/ (entire directory if exists - customer version)
+src/components/forms/ (entire directory if exists - customer version)
+src/components/dashboard/DashboardStats.tsx (customer version - check if different from admin)
+src/components/dashboard/RecentOrders.tsx (customer version - check if different from admin)
+src/components/dashboard/RevenueChart.tsx (customer version - check if different from admin)
+
+## CONTEXT TO MIGRATE
+src/context/CartContext.tsx
+src/context/LocationContext.tsx
+
+## UTILITIES & CONFIG (REVIEW FIRST)
+src/utils/index.ts (review - may contain shared utilities)
+src/constants/index.ts (review - migrate customer-specific constants)
+src/types/index.ts (review - migrate customer-specific types)
+src/lib/api.ts (review - migrate if customer API calls)
+src/lib/config.ts (review - migrate if customer config)
+src/hooks/ (review - migrate customer-specific hooks)
+src/styles/ (review - migrate customer-specific styles)
+
+## NOTES
+- Keep src/lib/supabase/** in BOTH repos
+- Keep src/components/ui/** in BOTH repos (except location-input.tsx and sticky-footer.tsx)
+- Review API routes in src/app/api/** - may need to share or duplicate
