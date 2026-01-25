@@ -1,0 +1,15 @@
+# CodeRabbit Configuration
+# This file enables comprehensive code review across the entire codebase
+
+review:
+  # Review all files in the repository
+  paths:
+    - "**/*"
+  
+  # Enable comprehensive analysis
+  suggestions:
+    - code-quality
+    - best-practices
+    - security
+    - performance
+    - maintainability
