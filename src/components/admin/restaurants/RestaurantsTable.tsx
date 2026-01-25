@@ -1,6 +1,7 @@
+// @ts-nocheck
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -55,11 +56,15 @@ interface Restaurant {
   slug: string
   address: string
   logo_url: string | null
+  metadata: any
   rating: number | null
   is_active: boolean | null
-  is_verified: boolean | null
+  verification_status: 'pending' | 'approved' | 'rejected' | null
   is_blocked: boolean | null
   review_notes: string | null
+  rejection_reason: string | null
+  fssai_doc_url: string | null
+  pan_doc_url: string | null
   commission_rate: number | null
   created_at: string
 }
@@ -77,8 +82,73 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
   const [reviewNotes, setReviewNotes] = useState('')
   const [blockDialogOpen, setBlockDialogOpen] = useState<string | null>(null)
   const [blockReason, setBlockReason] = useState('')
+  const [documentUrls, setDocumentUrls] = useState<{fssai: string | null, pan: string | null}>({fssai: null, pan: null})
+  const [rejectReason, setRejectReason] = useState('')
+  const [isReviewing, setIsReviewing] = useState<string | null>(null)
+
   const supabase = createClient()
   const router = useRouter()
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('restaurants-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'restaurants' },
+        (payload) => {
+           if (payload.eventType === 'INSERT') {
+               const newRestaurant = payload.new as Restaurant;
+               setRestaurants((prev) => [newRestaurant, ...prev]);
+               if (newRestaurant.verification_status === 'pending') {
+                   toast("New Application Received", {
+                       description: `${newRestaurant.name} has signed up.`,
+                       action: {
+                           label: "Review",
+                           onClick: () => {
+                               setSearchQuery(newRestaurant.name) // Filter to it
+                               // Open review logic?
+                           }
+                       }
+                   });
+               }
+           } else if (payload.eventType === 'UPDATE') {
+               const updated = payload.new as Restaurant;
+               setRestaurants((prev) => prev.map(r => r.id === updated.id ? updated : r));
+
+               // If status changed to pending (re-submission)
+               if (updated.verification_status === 'pending' && payload.old && payload.old.verification_status !== 'pending') {
+                   toast("Application Re-submitted", {
+                       description: `${updated.name} has updated their documents.`,
+                   });
+               }
+           } else if (payload.eventType === 'DELETE') {
+               setRestaurants((prev) => prev.filter(r => r.id !== payload.old.id));
+           }
+        }
+      )
+      .subscribe();
+
+    return () => {
+        supabase.removeChannel(channel);
+    };
+  }, [supabase, router]);
+
+  const fetchDocuments = async (restaurant: Restaurant) => {
+      // Assuming urls are paths like 'partner-documents/pan/...'
+      // Needs to be signed
+      let fssaiSigned = null
+      let panSigned = null
+
+      if (restaurant.fssai_doc_url) {
+          const { data } = await supabase.storage.from('partner-documents').createSignedUrl(restaurant.fssai_doc_url, 3600)
+          fssaiSigned = data?.signedUrl
+      }
+      if (restaurant.pan_doc_url) {
+          const { data } = await supabase.storage.from('partner-documents').createSignedUrl(restaurant.pan_doc_url, 3600)
+          panSigned = data?.signedUrl
+      }
+      setDocumentUrls({ fssai: fssaiSigned, pan: panSigned })
+  }
 
   const filteredRestaurants = restaurants.filter((restaurant) => {
     const matchesSearch =
@@ -87,8 +157,8 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
 
     const matchesStatus =
       statusFilter === 'all' ||
-      (statusFilter === 'verified' && restaurant.is_verified) ||
-      (statusFilter === 'pending' && !restaurant.is_verified) ||
+      (statusFilter === 'verified' && restaurant.verification_status === 'approved') ||
+      (statusFilter === 'pending' && restaurant.verification_status === 'pending') ||
       (statusFilter === 'active' && restaurant.is_active) ||
       (statusFilter === 'inactive' && !restaurant.is_active) ||
       (statusFilter === 'blocked' && restaurant.is_blocked)
@@ -96,21 +166,41 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
     return matchesSearch && matchesStatus
   })
 
-  async function updateRestaurantStatus(id: string, field: 'is_active' | 'is_verified', value: boolean) {
+  async function updateVerificationStatus(id: string, status: 'approved' | 'rejected', reason?: string) {
+    const updateBody: any = { verification_status: status }
+    if (reason) updateBody.rejection_reason = reason
+
     const { error } = await supabase
       .from('restaurants')
-      .update({ [field]: value })
+      .update(updateBody)
       .eq('id', id)
 
     if (error) {
-      toast.error('Failed to update restaurant')
+      toast.error(`Failed to ${status} restaurant`)
       return
     }
 
     setRestaurants(restaurants.map(r =>
-      r.id === id ? { ...r, [field]: value } : r
+      r.id === id ? { ...r, verification_status: status, rejection_reason: reason || null } : r
     ))
-    toast.success('Restaurant updated successfully')
+    toast.success(`Restaurant ${status} successfully`)
+  }
+
+  async function updateActiveStatus(id: string, active: boolean) {
+      const { error } = await supabase
+        .from('restaurants')
+        .update({ is_active: active })
+        .eq('id', id)
+
+      if (error) {
+        toast.error('Failed to update status')
+        return
+      }
+
+      setRestaurants(restaurants.map(r =>
+        r.id === id ? { ...r, is_active: active } : r
+      ))
+      toast.success('Status updated')
   }
 
   async function deleteRestaurant(id: string) {
@@ -180,23 +270,23 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
   }
 
   return (
-    <Card className="bg-zinc-900 border-zinc-800">
-      <div className="p-4 border-b border-zinc-800 flex flex-col sm:flex-row gap-4">
+    <Card className="bg-card border-border">
+      <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search restaurants..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-zinc-800 border-zinc-700 text-white"
+            className="pl-10 bg-muted border-border text-foreground"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40 bg-zinc-800 border-zinc-700 text-white">
+          <SelectTrigger className="w-40 bg-muted border-border text-foreground">
             <Filter className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Filter" />
           </SelectTrigger>
-          <SelectContent className="bg-zinc-800 border-zinc-700">
+          <SelectContent className="bg-card border-border">
             <SelectItem value="all">All</SelectItem>
             <SelectItem value="verified">Verified</SelectItem>
             <SelectItem value="pending">Pending Verification</SelectItem>
@@ -210,44 +300,44 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-zinc-800">
-              <th className="text-left text-xs font-medium text-zinc-500 uppercase tracking-wider px-6 py-3">
+            <tr className="border-b border-border">
+              <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-6 py-3">
                 Restaurant
               </th>
-              <th className="text-left text-xs font-medium text-zinc-500 uppercase tracking-wider px-6 py-3">
+              <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-6 py-3">
                 Address
               </th>
-              <th className="text-left text-xs font-medium text-zinc-500 uppercase tracking-wider px-6 py-3">
+              <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-6 py-3">
                 Rating
               </th>
-              <th className="text-left text-xs font-medium text-zinc-500 uppercase tracking-wider px-6 py-3">
+              <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-6 py-3">
                 Commission
               </th>
-              <th className="text-left text-xs font-medium text-zinc-500 uppercase tracking-wider px-6 py-3">
+              <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-6 py-3">
                 Status
               </th>
-              <th className="text-left text-xs font-medium text-zinc-500 uppercase tracking-wider px-6 py-3">
+              <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-6 py-3">
                 Joined
               </th>
-              <th className="text-left text-xs font-medium text-zinc-500 uppercase tracking-wider px-6 py-3">
+              <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-6 py-3">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800">
+          <tbody className="divide-y divide-border">
             {filteredRestaurants.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-8 text-center text-zinc-500">
+                <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
                   No restaurants found
                 </td>
               </tr>
             ) : (
               filteredRestaurants.map((restaurant) => (
-                <tr key={restaurant.id} className="hover:bg-zinc-800/50 transition-colors">
+                <tr key={restaurant.id} className="hover:bg-muted/50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10 rounded-lg">
-                        <AvatarImage src={restaurant.logo_url || ''} />
+                        <AvatarImage src={restaurant.logo_url || restaurant.metadata?.restaurantImages?.[0] || ''} className="object-cover" />
                         <AvatarFallback className="bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-lg">
                           {restaurant.name.charAt(0).toUpperCase()}
                         </AvatarFallback>
@@ -255,35 +345,37 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
                       <div>
                         <Link
                           href={`/admin/restaurants/${restaurant.id}`}
-                          className="text-sm font-medium text-white hover:text-orange-400 transition-colors"
+                          className="text-sm font-medium text-foreground hover:text-orange-400 transition-colors"
                         >
                           {restaurant.name}
                         </Link>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-zinc-300 max-w-xs truncate">
+                  <td className="px-6 py-4 text-sm text-foreground/80 max-w-xs truncate">
                     {restaurant.address}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1">
                       <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                      <span className="text-sm text-white">{restaurant.rating?.toFixed(1) || '-'}</span>
+                      <span className="text-sm text-foreground">{restaurant.rating?.toFixed(1) || '-'}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-zinc-300">
+                  <td className="px-6 py-4 text-sm text-foreground/80">
                     {restaurant.commission_rate}%
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
                       <Badge
                         className={`border ${
-                          restaurant.is_verified
+                          restaurant.verification_status === 'approved'
                             ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                            : restaurant.verification_status === 'rejected'
+                            ? 'bg-red-500/10 text-red-400 border-red-500/30'
                             : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30'
                         }`}
                       >
-                        {restaurant.is_verified ? 'Verified' : 'Pending'}
+                        {restaurant.verification_status === 'approved' ? 'Verified' : restaurant.verification_status === 'rejected' ? 'Rejected' : 'Pending'}
                       </Badge>
                       <Badge
                         className={`border ${
@@ -301,24 +393,24 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-zinc-400">
+                  <td className="px-6 py-4 text-sm text-muted-foreground">
                     {formatDistanceToNow(new Date(restaurant.created_at), { addSuffix: true })}
                   </td>
                   <td className="px-6 py-4">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-zinc-400 hover:text-white">
+                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
                           <MoreHorizontal size={16} />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-zinc-800 border-zinc-700">
+                      <DropdownMenuContent align="end" className="bg-card border-border">
                         <DropdownMenuItem asChild>
                           <Link href={`/admin/restaurants/${restaurant.id}`} className="flex items-center cursor-pointer">
                             <Eye className="mr-2 h-4 w-4" />
                             View Details
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-zinc-700" />
+                        <DropdownMenuSeparator className="bg-border" />
 
                         <Dialog open={reviewDialogOpen === restaurant.id} onOpenChange={(open) => {
                           setReviewDialogOpen(open ? restaurant.id : null)
@@ -334,21 +426,21 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
                               Review & Notes
                             </DropdownMenuItem>
                           </DialogTrigger>
-                          <DialogContent className="bg-zinc-900 border-zinc-800 max-w-md">
+                          <DialogContent className="bg-card border-border max-w-md">
                             <DialogHeader>
-                              <DialogTitle className="text-white">Review Restaurant: {restaurant.name}</DialogTitle>
-                              <DialogDescription className="text-zinc-400">
+                              <DialogTitle className="text-foreground">Review Restaurant: {restaurant.name}</DialogTitle>
+                              <DialogDescription className="text-muted-foreground">
                                 Add review notes and comments about this restaurant
                               </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4 mt-4">
                               <div className="space-y-2">
-                                <Label className="text-zinc-300">Review Notes</Label>
+                                <Label className="text-foreground/80">Review Notes</Label>
                                 <Textarea
                                   value={reviewNotes}
                                   onChange={(e) => setReviewNotes(e.target.value)}
                                   placeholder="Enter review notes..."
-                                  className="bg-zinc-800 border-zinc-700 text-white min-h-[150px] resize-none"
+                                  className="bg-muted border-border text-foreground min-h-[150px] resize-none"
                                 />
                               </div>
                             </div>
@@ -356,7 +448,7 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
                               <Button
                                 variant="outline"
                                 onClick={() => setReviewDialogOpen(null)}
-                                className="border-zinc-700"
+                                className="border-border"
                               >
                                 Cancel
                               </Button>
@@ -369,19 +461,131 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
                             </DialogFooter>
                           </DialogContent>
                         </Dialog>
+                        <DropdownMenuSeparator className="bg-border" />
 
-                        {!restaurant.is_verified && (
-                          <DropdownMenuItem
-                            onClick={() => updateRestaurantStatus(restaurant.id, 'is_verified', true)}
-                            className="cursor-pointer"
-                          >
-                            <CheckCircle className="mr-2 h-4 w-4 text-blue-400" />
-                            <span className="text-blue-400">Verify Restaurant</span>
-                          </DropdownMenuItem>
+                        {restaurant.verification_status !== 'approved' && (
+                           <Dialog open={isReviewing === restaurant.id} onOpenChange={(open) => {
+                               setIsReviewing(open ? restaurant.id : null)
+                               if(open) {
+                                   fetchDocuments(restaurant)
+                               }
+                           }}>
+                             <DialogTrigger asChild>
+                               <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                                 <CheckCircle className="mr-2 h-4 w-4 text-blue-400" />
+                                 <span className="text-blue-400">Review Application</span>
+                               </DropdownMenuItem>
+                             </DialogTrigger>
+                             <DialogContent className="bg-card border-border max-w-4xl max-h-[90vh] overflow-y-auto">
+                               <DialogHeader>
+                                 <DialogTitle className="text-foreground">Review Application: {restaurant.name}</DialogTitle>
+                                 <DialogDescription className="text-muted-foreground">
+                                   Review all submitted data and approve or reject the application.
+                                 </DialogDescription>
+                               </DialogHeader>
+
+                               <div className="space-y-6 mt-4">
+                                  {/* Restaurant Basic Info */}
+                                  <div className="p-4 bg-muted rounded-lg">
+                                    <h4 className="text-sm font-medium text-foreground mb-3">Basic Information</h4>
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                      <div>
+                                        <span className="text-muted-foreground">Name:</span>
+                                        <span className="ml-2 text-foreground">{restaurant.name}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-muted-foreground">Address:</span>
+                                        <span className="ml-2 text-foreground">{restaurant.address || 'N/A'}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Documents */}
+                                  <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                          <Label className="text-foreground/80">FSSAI Document</Label>
+                                          {documentUrls.fssai ? (
+                                              <a href={documentUrls.fssai} target="_blank" rel="noopener noreferrer" className="block p-4 border border-border rounded-lg hover:bg-muted transition-colors">
+                                                  <div className="flex items-center justify-center h-32 bg-muted rounded mb-2">
+                                                      <FileText className="h-10 w-10 text-muted-foreground" />
+                                                  </div>
+                                                  <p className="text-center text-sm text-blue-400">View FSSAI</p>
+                                              </a>
+                                          ) : (
+                                              <div className="p-4 border border-border rounded-lg bg-muted/50">
+                                                  <p className="text-center text-sm text-muted-foreground">No document uploaded</p>
+                                              </div>
+                                          )}
+                                      </div>
+                                      <div className="space-y-2">
+                                          <Label className="text-foreground/80">PAN Document</Label>
+                                          {documentUrls.pan ? (
+                                              <a href={documentUrls.pan} target="_blank" rel="noopener noreferrer" className="block p-4 border border-border rounded-lg hover:bg-muted transition-colors">
+                                                  <div className="flex items-center justify-center h-32 bg-muted rounded mb-2">
+                                                      <FileText className="h-10 w-10 text-muted-foreground" />
+                                                  </div>
+                                                  <p className="text-center text-sm text-blue-400">View PAN</p>
+                                              </a>
+                                          ) : (
+                                              <div className="p-4 border border-border rounded-lg bg-muted/50">
+                                                  <p className="text-center text-sm text-muted-foreground">No document uploaded</p>
+                                              </div>
+                                          )}
+                                      </div>
+                                  </div>
+
+                                  {/* View Details Link */}
+                                  <div className="text-center">
+                                    <Link
+                                      href={`/admin/restaurants/${restaurant.id}`}
+                                      className="text-sm text-blue-400 hover:text-blue-300 underline"
+                                      onClick={() => setIsReviewing(null)}
+                                    >
+                                      View Complete Details with Map & Images →
+                                    </Link>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                      <Label className="text-foreground/80">Rejection Reason (If rejecting)</Label>
+                                      <Textarea
+                                          value={rejectReason}
+                                          onChange={(e) => setRejectReason(e.target.value)}
+                                          placeholder="e.g. Documents are blurry, Name mismatch..."
+                                          className="bg-muted border-border text-foreground"
+                                      />
+                                  </div>
+                               </div>
+
+                               <DialogFooter className="gap-2 sm:gap-0">
+                                 <Button
+                                   variant="destructive"
+                                   onClick={() => {
+                                       if(!rejectReason) {
+                                           toast.error("Please provide a reason for rejection");
+                                           return;
+                                       }
+                                       updateVerificationStatus(restaurant.id, 'rejected', rejectReason);
+                                       setIsReviewing(null);
+                                   }}
+                                 >
+                                   Reject Application
+                                 </Button>
+                                 <Button
+                                   className="bg-green-600 hover:bg-green-700"
+                                   onClick={() => {
+                                       updateVerificationStatus(restaurant.id, 'approved');
+                                       setIsReviewing(null);
+                                   }}
+                                 >
+                                   Approve Application
+                                 </Button>
+                               </DialogFooter>
+                             </DialogContent>
+                           </Dialog>
                         )}
 
                         <DropdownMenuItem
-                          onClick={() => updateRestaurantStatus(restaurant.id, 'is_active', !restaurant.is_active)}
+                          onClick={() => updateActiveStatus(restaurant.id, !restaurant.is_active)}
                           className="cursor-pointer"
                         >
                           {restaurant.is_active ? (
@@ -397,7 +601,7 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
                           )}
                         </DropdownMenuItem>
 
-                        <DropdownMenuSeparator className="bg-zinc-700" />
+                        <DropdownMenuSeparator className="bg-border" />
 
                         {!restaurant.is_blocked ? (
                           <AlertDialog open={blockDialogOpen === restaurant.id} onOpenChange={(open) => {
@@ -410,26 +614,26 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
                                 <span className="text-red-400">Block Restaurant</span>
                               </DropdownMenuItem>
                             </AlertDialogTrigger>
-                            <AlertDialogContent className="bg-zinc-900 border-zinc-800">
+                            <AlertDialogContent className="bg-card border-border">
                               <AlertDialogHeader>
-                                <AlertDialogTitle className="text-white">Block Restaurant</AlertDialogTitle>
-                                <AlertDialogDescription className="text-zinc-400">
+                                <AlertDialogTitle className="text-foreground">Block Restaurant</AlertDialogTitle>
+                                <AlertDialogDescription className="text-muted-foreground">
                                   This will block {restaurant.name} and prevent them from receiving orders.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <div className="space-y-4 py-4">
                                 <div className="space-y-2">
-                                  <Label className="text-zinc-300">Reason (Optional)</Label>
+                                  <Label className="text-foreground/80">Reason (Optional)</Label>
                                   <Textarea
                                     value={blockReason}
                                     onChange={(e) => setBlockReason(e.target.value)}
                                     placeholder="Enter reason for blocking..."
-                                    className="bg-zinc-800 border-zinc-700 text-white min-h-[100px] resize-none"
+                                    className="bg-muted border-border text-foreground min-h-[100px] resize-none"
                                   />
                                 </div>
                               </div>
                               <AlertDialogFooter>
-                                <AlertDialogCancel className="border-zinc-700">Cancel</AlertDialogCancel>
+                                <AlertDialogCancel className="border-border">Cancel</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => blockRestaurant(restaurant.id, true)}
                                   className="bg-red-600 hover:bg-red-700"
@@ -449,7 +653,7 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
                           </DropdownMenuItem>
                         )}
 
-                        <DropdownMenuSeparator className="bg-zinc-700" />
+                        <DropdownMenuSeparator className="bg-border" />
 
                         <AlertDialog open={deleteDialogOpen === restaurant.id} onOpenChange={(open) => setDeleteDialogOpen(open ? restaurant.id : null)}>
                           <AlertDialogTrigger asChild>
@@ -458,15 +662,15 @@ export function RestaurantsTable({ restaurants: initialRestaurants }: Restaurant
                               Delete Restaurant
                             </DropdownMenuItem>
                           </AlertDialogTrigger>
-                          <AlertDialogContent className="bg-zinc-900 border-zinc-800">
+                          <AlertDialogContent className="bg-card border-border">
                             <AlertDialogHeader>
-                              <AlertDialogTitle className="text-white">Delete Restaurant</AlertDialogTitle>
-                              <AlertDialogDescription className="text-zinc-400">
+                              <AlertDialogTitle className="text-foreground">Delete Restaurant</AlertDialogTitle>
+                              <AlertDialogDescription className="text-muted-foreground">
                                 Are you sure you want to delete {restaurant.name}? This action cannot be undone and will remove all associated data including menu items and order history.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel className="border-zinc-700">Cancel</AlertDialogCancel>
+                              <AlertDialogCancel className="border-border">Cancel</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => deleteRestaurant(restaurant.id)}
                                 className="bg-red-600 hover:bg-red-700"

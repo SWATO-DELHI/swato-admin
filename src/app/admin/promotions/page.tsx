@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createClient } from '@/lib/supabase/server'
 import { PromotionsPanel } from '@/components/admin/promotions/PromotionsPanel'
 

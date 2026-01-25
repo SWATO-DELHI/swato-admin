@@ -57,3 +57,11 @@ src/styles/ (review - migrate customer-specific styles)
 - Keep src/lib/supabase/** in BOTH repos
 - Keep src/components/ui/** in BOTH repos (except location-input.tsx and sticky-footer.tsx)
 - Review API routes in src/app/api/** - may need to share or duplicate
+
+
+
+
+
+
+
+

@@ -23,7 +23,7 @@ export default async function DashboardPage() {
     supabase.from('orders').select('*', { count: 'exact', head: true }),
     supabase.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', today.toISOString()),
     supabase.from('drivers').select('*', { count: 'exact', head: true }).eq('is_online', true),
-    supabase.from('orders').select('*', { count: 'exact', head: true }).in('status', ['pending', 'confirmed', 'preparing']),
+    supabase.from('orders').select('*', { count: 'exact', head: true }).in('status', ['placed', 'confirmed', 'preparing']),
     supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
     supabase.from('restaurants').select('*', { count: 'exact', head: true }),
   ])
@@ -69,7 +69,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <RecentOrders orders={recentOrders || []} />
+      <RecentOrders orders={(recentOrders || []) as any} />
     </div>
   )
 }

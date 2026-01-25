@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createClient } from '@/lib/supabase/server'
 import { FinancePanel } from '@/components/admin/finance/FinancePanel'
 

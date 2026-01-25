@@ -549,6 +549,40 @@ export type Database = {
           slug: string
           total_ratings: number | null
           updated_at: string
+          // New onboarding columns
+          owner_phone: string | null
+          whatsapp_number: string | null
+          email: string | null
+          working_days: string[] | null
+          time_slots: Json | null
+          restaurant_images: string[] | null
+          menu_image_url: string | null
+          restaurant_front_image: string | null
+          directions_audio_url: string | null
+          landmark: string | null
+          shop_name: string | null
+          floor: string | null
+          building: string | null
+          pincode: string | null
+          complete_address: string | null
+          pan_number: string | null
+          gstin: string | null
+          bank_ifsc: string | null
+          bank_account: string | null
+          fssai_number: string | null
+          fssai_doc_url: string | null
+          pan_doc_url: string | null
+          outlet_type: string | null
+          verification_status: string | null
+          onboarding_step: string | null
+          cost_for_two: number | null
+          menu_type: string | null
+          packaging_type: string | null
+          packaging_charge: number | null
+          has_pos: boolean | null
+          owner_name: string | null
+          card_holder: string | null
+          metadata: Json | null
         }
         Insert: {
           address: string
@@ -573,6 +607,40 @@ export type Database = {
           slug: string
           total_ratings?: number | null
           updated_at?: string
+          // New onboarding columns
+          owner_phone?: string | null
+          whatsapp_number?: string | null
+          email?: string | null
+          working_days?: string[] | null
+          time_slots?: Json | null
+          restaurant_images?: string[] | null
+          menu_image_url?: string | null
+          restaurant_front_image?: string | null
+          directions_audio_url?: string | null
+          landmark?: string | null
+          shop_name?: string | null
+          floor?: string | null
+          building?: string | null
+          pincode?: string | null
+          complete_address?: string | null
+          pan_number?: string | null
+          gstin?: string | null
+          bank_ifsc?: string | null
+          bank_account?: string | null
+          fssai_number?: string | null
+          fssai_doc_url?: string | null
+          pan_doc_url?: string | null
+          outlet_type?: string | null
+          verification_status?: string | null
+          onboarding_step?: string | null
+          cost_for_two?: number | null
+          menu_type?: string | null
+          packaging_type?: string | null
+          packaging_charge?: number | null
+          has_pos?: boolean | null
+          owner_name?: string | null
+          card_holder?: string | null
+          metadata?: Json | null
         }
         Update: {
           address?: string
@@ -597,6 +665,40 @@ export type Database = {
           slug?: string
           total_ratings?: number | null
           updated_at?: string
+          // New onboarding columns
+          owner_phone?: string | null
+          whatsapp_number?: string | null
+          email?: string | null
+          working_days?: string[] | null
+          time_slots?: Json | null
+          restaurant_images?: string[] | null
+          menu_image_url?: string | null
+          restaurant_front_image?: string | null
+          directions_audio_url?: string | null
+          landmark?: string | null
+          shop_name?: string | null
+          floor?: string | null
+          building?: string | null
+          pincode?: string | null
+          complete_address?: string | null
+          pan_number?: string | null
+          gstin?: string | null
+          bank_ifsc?: string | null
+          bank_account?: string | null
+          fssai_number?: string | null
+          fssai_doc_url?: string | null
+          pan_doc_url?: string | null
+          outlet_type?: string | null
+          verification_status?: string | null
+          onboarding_step?: string | null
+          cost_for_two?: number | null
+          menu_type?: string | null
+          packaging_type?: string | null
+          packaging_charge?: number | null
+          has_pos?: boolean | null
+          owner_name?: string | null
+          card_holder?: string | null
+          metadata?: Json | null
         }
         Relationships: []
       }

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "create-demo-user": "tsx scripts/create-demo-user.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -22,6 +23,7 @@
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.88.0",
     "@tanstack/react-table": "^8.21.3",
+    "@vis.gl/react-google-maps": "^1.7.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -44,6 +46,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.8",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

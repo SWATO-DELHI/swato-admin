@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { NotificationBell } from '@/components/admin/notifications/NotificationBell'
 
 interface AdminHeaderProps {
   sidebarCollapsed?: boolean
@@ -49,14 +50,7 @@ export function AdminHeader({ sidebarCollapsed }: AdminHeaderProps) {
         <div className="flex items-center gap-3">
           <ThemeToggle />
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-zinc-800"
-          >
-            <Bell size={20} />
-            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-orange-500" />
-          </Button>
+          <NotificationBell />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
