@@ -1,0 +1,11 @@
+{
+    "servers": {
+        "supabase": {
+            "type" : "http",
+            "url": "https://supabase.com/dashboard/project/efkkythybfgphuzyeebh",
+            "headers": {
+                "Authorization" : "sbp_cb12de7499a5eddf15e9a85bc6672cfe9c2641d9"
+            }
+        }
+    }
+}
