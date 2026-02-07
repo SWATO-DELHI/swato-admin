@@ -775,9 +775,166 @@ export async function fetchDashboardStats(): Promise<{
   return { orders, restaurants, drivers };
 }
 
+// ============ DELIVERY MANAGEMENT ============
+
+export async function fetchActiveDeliveries() {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select(`
+      *,
+      customer:users!orders_customer_id_fkey(name, phone),
+      restaurant:restaurants!orders_restaurant_id_fkey(name, address, lat, lng),
+      driver:drivers!orders_driver_id_fkey(
+        id,
+        current_lat,
+        current_lng,
+        vehicle_type,
+        vehicle_number,
+        user:users!drivers_user_id_fkey(name, phone)
+      )
+    `)
+    .in('status', ['assigned', 'picked_up'])
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching active deliveries:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function fetchDeliveryRequests(orderId: string) {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('delivery_requests')
+    .select(`
+      *,
+      driver:drivers!delivery_requests_driver_id_fkey(
+        id,
+        vehicle_type,
+        vehicle_number,
+        rating,
+        user:users!drivers_user_id_fkey(name, phone)
+      )
+    `)
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching delivery requests:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function adminAssignDriver(
+  orderId: string,
+  driverId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  // Try atomic RPC first
+  const { error: rpcError } = await supabase.rpc('accept_delivery', {
+    p_order_id: orderId,
+    p_driver_id: driverId,
+  });
+
+  if (!rpcError) {
+    return { success: true };
+  }
+
+  console.warn('RPC assign failed, using direct update:', rpcError);
+
+  // Fallback to direct operations
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      driver_id: driverId,
+      status: 'assigned',
+      driver_assigned_at: new Date().toISOString(),
+    })
+    .eq('id', orderId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  await supabase
+    .from('drivers')
+    .update({ current_order_id: orderId })
+    .eq('id', driverId);
+
+  return { success: true };
+}
+
+export async function fetchAvailableDrivers() {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('drivers')
+    .select(`
+      id,
+      user_id,
+      vehicle_type,
+      vehicle_number,
+      rating,
+      total_deliveries,
+      is_online,
+      is_verified,
+      current_lat,
+      current_lng,
+      current_order_id,
+      user:users!drivers_user_id_fkey(name, phone)
+    `)
+    .eq('is_verified', true)
+    .is('current_order_id', null)
+    .order('rating', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching available drivers:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// ============ PICKUP OTP MANAGEMENT ============
+
+export async function fetchPickupOTP(orderId: string) {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('pickup_otps')
+    .select('*')
+    .eq('order_id', orderId)
+    .eq('is_used', false)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error) {
+    // Fallback: check orders table
+    const { data: order } = await supabase
+      .from('orders')
+      .select('pickup_otp')
+      .eq('id', orderId)
+      .single();
+
+    return order?.pickup_otp || null;
+  }
+
+  return data?.otp_code || null;
+}
+
 // ============ REAL-TIME SUBSCRIPTIONS ============
 
-export function subscribeToOrders(callback: (order: AdminOrder) => void) {
+export function subscribeToOrders(callback: (payload: { eventType: string; order: any }) => void) {
   const supabase = createClient();
 
   return supabase
@@ -786,13 +943,8 @@ export function subscribeToOrders(callback: (order: AdminOrder) => void) {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'orders' },
       (payload) => {
-        console.log('📡 Admin: Order change detected', payload);
-        // Fetch full order with joins
-        fetchAllOrders(1).then(orders => {
-          if (orders.length > 0) {
-            callback(orders[0]);
-          }
-        });
+        console.log('📡 Admin: Order change detected', payload.eventType, payload);
+        callback({ eventType: payload.eventType, order: payload.new || payload.old });
       }
     )
     .subscribe();

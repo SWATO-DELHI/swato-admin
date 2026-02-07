@@ -26,7 +26,8 @@ const statusLabels: Record<string, string> = {
   confirmed: 'Order Confirmed',
   preparing: 'Preparing',
   ready: 'Ready for Pickup',
-  picked: 'Picked Up',
+  assigned: 'Driver Assigned',
+  picked_up: 'Picked Up',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
 }
@@ -58,7 +59,7 @@ export function OrderTimeline({ orderId, statusHistory: initialHistory, currentS
             .eq('order_id', orderId)
             .order('created_at', { ascending: false })
 
-          if (data) setStatusHistory(data)
+          if (data) setStatusHistory(data as unknown as StatusHistory[])
         }
       )
       .subscribe()

@@ -196,10 +196,28 @@ export default async function OrderDetailPage({
                     </a>
                   )}
                 </div>
+                {/* Show pickup OTP if available */}
+                {order.pickup_otp && ['assigned', 'picked_up'].includes(order.status) && (
+                  <div className="mt-3 p-2 bg-orange-500/10 border border-orange-500/30 rounded-lg ml-8">
+                    <p className="text-xs text-orange-400 font-medium">Pickup OTP</p>
+                    <p className="text-lg font-bold text-orange-300 tracking-widest">{order.pickup_otp}</p>
+                    {order.otp_verified_at && (
+                      <p className="text-xs text-green-400 mt-1">
+                        <CheckCircle className="h-3 w-3 inline mr-1" />
+                        Verified
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="p-3 bg-zinc-800 rounded-lg">
                 <p className="text-zinc-500 text-sm">No driver assigned</p>
+                {['ready', 'confirmed', 'preparing'].includes(order.status) && (
+                  <p className="text-xs text-zinc-600 mt-1">
+                    Use &quot;Assign Driver&quot; button above to manually assign
+                  </p>
+                )}
               </div>
             )}
           </div>

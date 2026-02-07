@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { createClient } from '@/lib/supabase/server'
-import { OrdersTable } from '@/components/admin/orders/OrdersTable'
+import { RealTimeOrdersWrapper } from '@/components/admin/orders/RealTimeOrdersWrapper'
+
+export const dynamic = 'force-dynamic'
 
 export default async function OrdersPage() {
   const supabase = await createClient()
@@ -20,10 +22,10 @@ export default async function OrdersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Orders</h1>
-        <p className="text-zinc-400 mt-1">Manage and track all orders</p>
+        <p className="text-zinc-400 mt-1">Manage and track all orders in real-time</p>
       </div>
 
-      <OrdersTable orders={(orders || []) as any} />
+      <RealTimeOrdersWrapper initialOrders={(orders || []) as any} />
     </div>
   )
 }
