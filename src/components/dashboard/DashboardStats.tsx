@@ -32,7 +32,7 @@ export function DashboardStats() {
         activeRestaurants: stats.restaurants.active,
         onlineDrivers: stats.drivers.active,
         avgRating: stats.restaurants.avgRating,
-        pendingOrders: stats.orders.placed + stats.orders.confirmed + stats.orders.preparing
+        pendingOrders: stats.orders.pending + stats.orders.confirmed + stats.orders.preparing
       });
     } catch (error) {
       console.error('Error loading dashboard stats:', error);

@@ -4,7 +4,7 @@
  * Fetches all data from Supabase for the Admin Panel
  *
  * CANONICAL STATUS FLOW:
- * placed → confirmed → preparing → ready → assigned → picked_up → delivered
+ * pending → confirmed → preparing → ready → assigned → picked_up → delivered
  */
 
 import { createClient } from './supabase/client';
@@ -12,7 +12,7 @@ import { createClient } from './supabase/client';
 // ============ ORDER STATUS CONSTANTS ============
 
 export const ORDER_STATUS = {
-  PLACED: 'placed',
+  PENDING: 'pending',
   CONFIRMED: 'confirmed',
   PREPARING: 'preparing',
   READY: 'ready',
@@ -25,7 +25,7 @@ export const ORDER_STATUS = {
 export type OrderStatus = typeof ORDER_STATUS[keyof typeof ORDER_STATUS];
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
-  placed: 'bg-yellow-100 text-yellow-800',
+  pending: 'bg-yellow-100 text-yellow-800',
   confirmed: 'bg-blue-100 text-blue-800',
   preparing: 'bg-orange-100 text-orange-800',
   ready: 'bg-purple-100 text-purple-800',
@@ -150,7 +150,7 @@ export interface AdminDriver {
 }
 
 export interface OrderStats {
-  placed: number;
+  pending: number;
   confirmed: number;
   preparing: number;
   ready: number;
@@ -245,14 +245,14 @@ export async function fetchOrderStats(): Promise<OrderStats> {
   if (error) {
     console.error('Error fetching order stats:', error);
     return {
-      placed: 0, confirmed: 0, preparing: 0, ready: 0,
+      pending: 0, confirmed: 0, preparing: 0, ready: 0,
       assigned: 0, picked_up: 0, delivered: 0, cancelled: 0, total: 0,
       todayDelivered: 0, todayRevenue: 0
     };
   }
 
   const stats: OrderStats = {
-    placed: 0, confirmed: 0, preparing: 0, ready: 0,
+    pending: 0, confirmed: 0, preparing: 0, ready: 0,
     assigned: 0, picked_up: 0, delivered: 0, cancelled: 0, total: 0,
     todayDelivered: 0, todayRevenue: 0
   };
@@ -260,7 +260,7 @@ export async function fetchOrderStats(): Promise<OrderStats> {
   (statusCounts || []).forEach((order: { status: string; total: number }) => {
     stats.total++;
     switch (order.status) {
-      case 'placed': stats.placed++; break;
+      case 'pending': stats.pending++; break;
       case 'confirmed': stats.confirmed++; break;
       case 'preparing': stats.preparing++; break;
       case 'ready': stats.ready++; break;

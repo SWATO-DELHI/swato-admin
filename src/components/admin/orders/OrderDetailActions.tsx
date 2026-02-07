@@ -42,7 +42,8 @@ const orderStatuses = [
   { value: 'confirmed', label: 'Confirmed' },
   { value: 'preparing', label: 'Preparing' },
   { value: 'ready', label: 'Ready' },
-  { value: 'picked', label: 'Picked' },
+  { value: 'assigned', label: 'Assigned' },
+  { value: 'picked_up', label: 'Picked Up' },
   { value: 'delivered', label: 'Delivered' },
 ]
 

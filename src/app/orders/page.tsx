@@ -19,7 +19,7 @@ import {
 } from '@/lib/adminService';
 
 const statusColors: Record<string, string> = {
-  placed: 'bg-yellow-100 text-yellow-800',
+  pending: 'bg-yellow-100 text-yellow-800',
   confirmed: 'bg-blue-100 text-blue-800',
   preparing: 'bg-orange-100 text-orange-800',
   ready: 'bg-purple-100 text-purple-800',
@@ -30,7 +30,7 @@ const statusColors: Record<string, string> = {
 };
 
 const statusIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-  placed: Clock,
+  pending: Clock,
   confirmed: CheckCircle,
   preparing: Package,
   ready: CheckCircle,
@@ -137,8 +137,8 @@ export default function OrdersPage() {
               <div className="flex items-center">
                 <Clock className="h-8 w-8 text-yellow-500" />
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Placed</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats?.placed || 0}</p>
+                  <p className="text-sm font-medium text-gray-600">Pending</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats?.pending || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -207,7 +207,7 @@ export default function OrdersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="placed">Placed</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="confirmed">Confirmed</SelectItem>
                     <SelectItem value="preparing">Preparing</SelectItem>
                     <SelectItem value="ready">Ready</SelectItem>
@@ -385,7 +385,7 @@ export default function OrdersPage() {
 
                 {/* Actions */}
                 <div className="flex gap-2 pt-4">
-                  {selectedOrder.status === 'placed' && (
+                  {selectedOrder.status === 'pending' && (
                     <>
                       <Button
                         onClick={() => handleStatusChange(selectedOrder.id, 'confirmed')}

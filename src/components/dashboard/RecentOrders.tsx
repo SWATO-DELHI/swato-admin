@@ -9,7 +9,7 @@ import { fetchAllOrders, AdminOrder } from '@/lib/adminService';
 import Link from 'next/link';
 
 const statusColors: Record<string, string> = {
-  placed: 'bg-yellow-100 text-yellow-800',
+  pending: 'bg-yellow-100 text-yellow-800',
   confirmed: 'bg-blue-100 text-blue-800',
   preparing: 'bg-orange-100 text-orange-800',
   ready: 'bg-purple-100 text-purple-800',
