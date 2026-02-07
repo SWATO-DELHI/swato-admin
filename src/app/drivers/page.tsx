@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,15 +11,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   Search, Filter, Eye, Truck, Phone, Mail, Star, MapPin, RefreshCw,
-  Bike, Car, CheckCircle, XCircle, FileText, Calendar, Shield
+  Bike, Car, CheckCircle, XCircle, FileText, Calendar, Shield, AlertCircle, Clock
 } from 'lucide-react';
 import {
   fetchAllDrivers,
   fetchDriverStats,
   verifyDriver,
   toggleDriverOnline,
+  approveDriverVerification,
+  rejectDriverVerification,
+  suspendDriver,
   AdminDriver,
-  DriverStats
+  DriverStats,
+  DriverVerificationStatus
 } from '@/lib/adminService';
 
 const vehicleIcons: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -38,9 +41,13 @@ export default function DriversPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [verificationFilter, setVerificationFilter] = useState('all');
   const [vehicleFilter, setVehicleFilter] = useState('all');
   const [selectedDriver, setSelectedDriver] = useState<AdminDriver | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -49,10 +56,13 @@ export default function DriversPage() {
   async function loadData() {
     setLoading(true);
     try {
+      console.log("🔄 Loading drivers data...");
       const [driversData, statsData] = await Promise.all([
         fetchAllDrivers(),
         fetchDriverStats()
       ]);
+      console.log("👥 Drivers loaded:", driversData.length);
+      console.log("📸 Sample driver with images:", driversData.find(d => d.license_image_url)?.license_image_url || 'No license images found');
       setDrivers(driversData);
       setStats(statsData);
     } catch (error) {
@@ -69,12 +79,16 @@ export default function DriversPage() {
       driver.vehicle_number?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' ||
       (statusFilter === 'online' && driver.is_online) ||
-      (statusFilter === 'offline' && !driver.is_online) ||
-      (statusFilter === 'verified' && driver.is_verified) ||
-      (statusFilter === 'unverified' && !driver.is_verified);
+      (statusFilter === 'offline' && !driver.is_online);
+    const matchesVerification = verificationFilter === 'all' ||
+      (verificationFilter === 'pending' && driver.verification_status === 'pending') ||
+      (verificationFilter === 'approved' && driver.verification_status === 'approved') ||
+      (verificationFilter === 'rejected' && driver.verification_status === 'rejected') ||
+      (verificationFilter === 'suspended' && driver.verification_status === 'suspended') ||
+      (verificationFilter === 'not_submitted' && !driver.submitted_at);
     const matchesVehicle = vehicleFilter === 'all' ||
       driver.vehicle_type?.toLowerCase() === vehicleFilter.toLowerCase();
-    return matchesSearch && matchesStatus && matchesVehicle;
+    return matchesSearch && matchesStatus && matchesVerification && matchesVehicle;
   });
 
   const formatDate = (dateStr: string | null) => {
@@ -86,8 +100,111 @@ export default function DriversPage() {
     });
   };
 
+  const getVerificationStatusBadge = (driver: AdminDriver) => {
+    const statusConfig = {
+      pending: { className: 'bg-yellow-100 text-yellow-800', icon: Clock, text: 'Pending Review' },
+      approved: { className: 'bg-green-100 text-green-800', icon: CheckCircle, text: 'Verified' },
+      rejected: { className: 'bg-red-100 text-red-800', icon: XCircle, text: 'Rejected' },
+      suspended: { className: 'bg-gray-100 text-gray-800', icon: AlertCircle, text: 'Suspended' },
+      not_submitted: { className: 'bg-gray-100 text-gray-800', icon: FileText, text: 'Not Submitted' }
+    };
+
+    const status = driver.verification_status || (driver.submitted_at ? 'pending' : 'not_submitted');
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.not_submitted;
+    const Icon = config.icon;
+
+    return (
+      <Badge className={config.className}>
+        <Icon className="h-3 w-3 mr-1" />
+        {config.text}
+      </Badge>
+    );
+  };
+
+  const handleViewDriver = (driver: AdminDriver) => {
+    console.log("🔍 Debug: Selected driver data:", {
+      id: driver.id,
+      license_image_url: driver.license_image_url,
+      rc_image_url: driver.rc_image_url,
+      insurance_image_url: driver.insurance_image_url,
+      verification_status: driver.verification_status,
+      submitted_at: driver.submitted_at
+    });
+    setSelectedDriver(driver);
+    setIsDetailOpen(true);
+    setIsRejecting(false);
+    setRejectionReason('');
+  };
+
+  const handleApproveDriver = async (driverId: string) => {
+    if (!driverId) return;
+    
+    setActionLoading(true);
+    try {
+      await approveDriverVerification(driverId);
+      await loadData(); // Refresh data
+      console.log('Driver approved successfully');
+    } catch (error) {
+      console.error('Error approving driver:', error);
+    }
+    setActionLoading(false);
+    setIsDetailOpen(false);
+  };
+
+  const handleRejectDriver = async (driverId: string, reason: string) => {
+    if (!reason.trim()) {
+      console.log('Please provide a reason for rejection');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await rejectDriverVerification(driverId, reason);
+      await loadData(); // Refresh data
+      console.log('Driver rejected successfully');
+    } catch (error) {
+      console.error('Error rejecting driver:', error);
+    }
+    setActionLoading(false);
+    setIsRejecting(false);
+    setIsDetailOpen(false);
+  };
+
+  const handleSuspendDriver = async (driverId: string, reason: string) => {
+    if (!reason.trim()) {
+      console.log('Please provide a reason for suspension');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await suspendDriver(driverId, reason);
+      await loadData(); // Refresh data
+      console.log('Driver suspended successfully');
+    } catch (error) {
+      console.error('Error suspending driver:', error);
+    }
+    setActionLoading(false);
+    setIsRejecting(false);
+    setIsDetailOpen(false);
+  };
+
+  const handleToggleOnline = async (driverId: string, isCurrentlyOnline: boolean) => {
+    setActionLoading(true);
+    try {
+      await toggleDriverOnline(driverId, !isCurrentlyOnline);
+      await loadData(); // Refresh data
+      console.log(`Driver is now ${isCurrentlyOnline ? 'offline' : 'online'}`);
+    } catch (error) {
+      console.error('Error toggling driver status:', error);
+    }
+    setActionLoading(false);
+  };
+
   const handleViewDriver = (driver: AdminDriver) => {
     setSelectedDriver(driver);
+    setRejectionReason('');
+    setIsRejecting(false);
     setIsDetailOpen(true);
   };
 
@@ -99,10 +216,70 @@ export default function DriversPage() {
     }
   };
 
+  const handleApproveDriver = async (driverId: string) => {
+    setActionLoading(true);
+    const result = await approveDriverVerification(driverId);
+    setActionLoading(false);
+    if (result.success) {
+      loadData();
+      setIsDetailOpen(false);
+    }
+  };
+
+  const handleRejectDriver = async (driverId: string) => {
+    if (!rejectionReason.trim()) {
+      alert('Please provide a reason for rejection');
+      return;
+    }
+    setActionLoading(true);
+    const result = await rejectDriverVerification(driverId, rejectionReason);
+    setActionLoading(false);
+    if (result.success) {
+      setRejectionReason('');
+      setIsRejecting(false);
+      loadData();
+      setIsDetailOpen(false);
+    }
+  };
+
+  const handleSuspendDriver = async (driverId: string) => {
+    if (!rejectionReason.trim()) {
+      alert('Please provide a reason for suspension');
+      return;
+    }
+    setActionLoading(true);
+    const result = await suspendDriver(driverId, rejectionReason);
+    setActionLoading(false);
+    if (result.success) {
+      setRejectionReason('');
+      setIsRejecting(false);
+      loadData();
+      setIsDetailOpen(false);
+    }
+  };
+
   const handleToggleOnline = async (driverId: string, currentStatus: boolean) => {
     const result = await toggleDriverOnline(driverId, !currentStatus);
     if (result.success) {
       loadData();
+    }
+  };
+
+  const getVerificationStatusBadge = (driver: AdminDriver) => {
+    if (!driver.submitted_at) {
+      return <Badge className="bg-gray-100 text-gray-800">Not Submitted</Badge>;
+    }
+    switch (driver.verification_status) {
+      case 'pending':
+        return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
+      case 'approved':
+        return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>;
+      case 'rejected':
+        return <Badge className="bg-red-100 text-red-800"><XCircle className="h-3 w-3 mr-1" />Rejected</Badge>;
+      case 'suspended':
+        return <Badge className="bg-orange-100 text-orange-800"><AlertCircle className="h-3 w-3 mr-1" />Suspended</Badge>;
+      default:
+        return <Badge className="bg-gray-100 text-gray-800">Unknown</Badge>;
     }
   };
 
@@ -120,6 +297,7 @@ export default function DriversPage() {
             onClick={loadData}
             className="bg-orange-500 hover:bg-orange-600"
             disabled={loading}
+            suppressHydrationWarning
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -231,8 +409,19 @@ export default function DriversPage() {
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="online">Online</SelectItem>
                     <SelectItem value="offline">Offline</SelectItem>
-                    <SelectItem value="verified">Verified</SelectItem>
-                    <SelectItem value="unverified">Unverified</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={verificationFilter} onValueChange={setVerificationFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Verification" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Verification</SelectItem>
+                    <SelectItem value="pending">Pending Review</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                    <SelectItem value="not_submitted">Not Submitted</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={vehicleFilter} onValueChange={setVehicleFilter}>
@@ -351,9 +540,7 @@ export default function DriversPage() {
                             <Badge className={driver.is_online ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
                               {driver.is_online ? 'Online' : 'Offline'}
                             </Badge>
-                            <Badge className={driver.is_verified ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}>
-                              {driver.is_verified ? 'Verified' : 'Pending'}
-                            </Badge>
+                            {getVerificationStatusBadge(driver)}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -361,6 +548,7 @@ export default function DriversPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleViewDriver(driver)}
+                            suppressHydrationWarning
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -384,14 +572,29 @@ export default function DriversPage() {
             {selectedDriver && (
               <div className="space-y-4">
                 {/* Status Badges */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Badge className={selectedDriver.is_online ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
                     {selectedDriver.is_online ? 'Online' : 'Offline'}
                   </Badge>
-                  <Badge className={selectedDriver.is_verified ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}>
-                    {selectedDriver.is_verified ? '✓ Verified' : 'Pending Verification'}
-                  </Badge>
+                  {getVerificationStatusBadge(selectedDriver)}
                 </div>
+
+                {/* Rejection Reason (if rejected/suspended) */}
+                {(selectedDriver.verification_status === 'rejected' || selectedDriver.verification_status === 'suspended') && selectedDriver.rejection_reason && (
+                  <Card className="bg-red-50 border-red-200">
+                    <CardContent className="py-3">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-red-600 mt-0.5" />
+                        <div>
+                          <div className="text-sm font-medium text-red-800">
+                            {selectedDriver.verification_status === 'rejected' ? 'Rejection Reason' : 'Suspension Reason'}
+                          </div>
+                          <div className="text-sm text-red-700">{selectedDriver.rejection_reason}</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Contact Info */}
                 <Card>
@@ -457,34 +660,34 @@ export default function DriversPage() {
                         {selectedDriver.license_image_url ? (
                           <Badge variant="outline" className="bg-green-50">
                             <CheckCircle className="h-3 w-3 mr-1 text-green-600" />
-                            License Image
+                            License document uploaded
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="bg-red-50">
                             <XCircle className="h-3 w-3 mr-1 text-red-600" />
-                            License Image Missing
+                            License document not uploaded
                           </Badge>
                         )}
                         {selectedDriver.rc_image_url ? (
                           <Badge variant="outline" className="bg-green-50">
                             <CheckCircle className="h-3 w-3 mr-1 text-green-600" />
-                            RC Document
+                            RC document uploaded
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="bg-red-50">
-                            <XCircle className="h-3 w-3 mr-1 text-red-600" />
-                            RC Missing
+                          <Badge variant="outline" className="bg-gray-50">
+                            <XCircle className="h-3 w-3 mr-1 text-gray-500" />
+                            RC document not uploaded
                           </Badge>
                         )}
                         {selectedDriver.insurance_image_url ? (
                           <Badge variant="outline" className="bg-green-50">
                             <CheckCircle className="h-3 w-3 mr-1 text-green-600" />
-                            Insurance
+                            Insurance document uploaded
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="bg-yellow-50">
-                            <XCircle className="h-3 w-3 mr-1 text-yellow-600" />
-                            Insurance Missing
+                          <Badge variant="outline" className="bg-gray-50">
+                            <XCircle className="h-3 w-3 mr-1 text-gray-500" />
+                            Insurance document not uploaded
                           </Badge>
                         )}
                       </div>
@@ -547,25 +750,106 @@ export default function DriversPage() {
                 )}
 
                 {/* Actions */}
-                <div className="flex gap-2 pt-4">
-                  {!selectedDriver.is_verified && (
-                    <Button
-                      onClick={() => handleVerifyDriver(selectedDriver.id)}
-                      className="bg-green-500 hover:bg-green-600"
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Verify Driver
-                    </Button>
+                <div className="space-y-4 pt-4 border-t">
+                  {/* Rejection/Suspension Reason Input */}
+                  {isRejecting && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Reason for {selectedDriver.verification_status === 'approved' ? 'Suspension' : 'Rejection'}
+                      </label>
+                      <Input
+                        placeholder="Enter reason..."
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        {selectedDriver.verification_status === 'approved' ? (
+                          <Button
+                            variant="destructive"
+                            onClick={() => handleSuspendDriver(selectedDriver.id, rejectionReason)}
+                            disabled={actionLoading || !rejectionReason.trim()}
+                          >
+                            {actionLoading ? 'Suspending...' : 'Confirm Suspension'}
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="destructive"
+                            onClick={() => handleRejectDriver(selectedDriver.id, rejectionReason)}
+                            disabled={actionLoading || !rejectionReason.trim()}
+                          >
+                            {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
+                          </Button>
+                        )}
+                        <Button variant="outline" onClick={() => { setIsRejecting(false); setRejectionReason(''); }}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
                   )}
-                  <Button
-                    variant={selectedDriver.is_online ? "destructive" : "default"}
-                    onClick={() => handleToggleOnline(selectedDriver.id, selectedDriver.is_online)}
-                  >
-                    {selectedDriver.is_online ? 'Set Offline' : 'Set Online'}
-                  </Button>
-                  <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
-                    Close
-                  </Button>
+
+                  {/* Main Action Buttons */}
+                  {!isRejecting && (
+                    <div className="flex gap-2 flex-wrap">
+                      {/* Approve Button - only for pending drivers */}
+                      {selectedDriver.verification_status === 'pending' && (
+                        <Button
+                          onClick={() => handleApproveDriver(selectedDriver.id)}
+                          className="bg-green-500 hover:bg-green-600"
+                          disabled={actionLoading}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          {actionLoading ? 'Approving...' : 'Approve'}
+                        </Button>
+                      )}
+
+                      {/* Reject Button - for pending drivers */}
+                      {selectedDriver.verification_status === 'pending' && (
+                        <Button
+                          variant="destructive"
+                          onClick={() => setIsRejecting(true)}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Reject
+                        </Button>
+                      )}
+
+                      {/* Suspend Button - for approved drivers */}
+                      {selectedDriver.verification_status === 'approved' && (
+                        <Button
+                          variant="destructive"
+                          onClick={() => setIsRejecting(true)}
+                        >
+                          <AlertCircle className="h-4 w-4 mr-2" />
+                          Suspend Driver
+                        </Button>
+                      )}
+
+                      {/* Re-approve Button - for rejected/suspended drivers */}
+                      {(selectedDriver.verification_status === 'rejected' || selectedDriver.verification_status === 'suspended') && (
+                        <Button
+                          onClick={() => handleApproveDriver(selectedDriver.id)}
+                          className="bg-green-500 hover:bg-green-600"
+                          disabled={actionLoading}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          {actionLoading ? 'Approving...' : 'Re-Approve'}
+                        </Button>
+                      )}
+
+                      {/* Toggle Online Status */}
+                      <Button
+                        variant={selectedDriver.is_online ? "destructive" : "default"}
+                        onClick={() => handleToggleOnline(selectedDriver.id, selectedDriver.is_online)}
+                        disabled={!selectedDriver.is_verified}
+                      >
+                        {selectedDriver.is_online ? 'Set Offline' : 'Set Online'}
+                      </Button>
+
+                      <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
+                        Close
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

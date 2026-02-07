@@ -119,6 +119,8 @@ export interface AdminRestaurant {
   menu_item_count?: number;
 }
 
+export type DriverVerificationStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
+
 export interface AdminDriver {
   id: string;
   user_id: string;
@@ -147,6 +149,12 @@ export interface AdminDriver {
     lng: number;
     updated_at: string;
   } | null;
+  // Verification fields
+  verification_status: DriverVerificationStatus | null;
+  rejection_reason: string | null;
+  submitted_at: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
 }
 
 export interface OrderStats {
@@ -501,6 +509,23 @@ export async function fetchAllDrivers(): Promise<AdminDriver[]> {
     return [];
   }
 
+  console.log("🔍 Debug: Raw drivers data from database:", JSON.stringify(drivers?.slice(0, 1), null, 2));
+  
+  // Check for image URLs in the fetched data
+  if (drivers && drivers.length > 0) {
+    const driverWithImages = drivers.find(d => d.license_image_url || d.rc_image_url || d.insurance_image_url);
+    if (driverWithImages) {
+      console.log("📸 Found driver with images:", {
+        id: driverWithImages.id,
+        license_image_url: driverWithImages.license_image_url,
+        rc_image_url: driverWithImages.rc_image_url,
+        insurance_image_url: driverWithImages.insurance_image_url
+      });
+    } else {
+      console.log("❌ No drivers found with image URLs");
+    }
+  }
+
   // Get current locations
   const driverIds = (drivers || []).map(d => d.id);
 
@@ -597,6 +622,119 @@ export async function verifyDriver(
   }
 
   return { success: true };
+}
+
+/**
+ * Approve a driver's verification
+ */
+export async function approveDriverVerification(
+  driverId: string,
+  adminUserId?: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from('drivers')
+    .update({
+      verification_status: 'approved',
+      is_verified: true,
+      verified_at: new Date().toISOString(),
+      verified_by: adminUserId || null,
+      rejection_reason: null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', driverId);
+
+  if (error) {
+    console.error('Error approving driver:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Reject a driver's verification
+ */
+export async function rejectDriverVerification(
+  driverId: string,
+  reason: string,
+  adminUserId?: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from('drivers')
+    .update({
+      verification_status: 'rejected',
+      is_verified: false,
+      rejection_reason: reason,
+      verified_at: new Date().toISOString(),
+      verified_by: adminUserId || null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', driverId);
+
+  if (error) {
+    console.error('Error rejecting driver:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Suspend a driver
+ */
+export async function suspendDriver(
+  driverId: string,
+  reason: string,
+  adminUserId?: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from('drivers')
+    .update({
+      verification_status: 'suspended',
+      is_verified: false,
+      is_online: false,
+      rejection_reason: reason,
+      verified_at: new Date().toISOString(),
+      verified_by: adminUserId || null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', driverId);
+
+  if (error) {
+    console.error('Error suspending driver:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Get pending driver verifications
+ */
+export async function fetchPendingDriverVerifications(): Promise<AdminDriver[]> {
+  const supabase = createClient();
+
+  const { data: drivers, error } = await supabase
+    .from('drivers')
+    .select(`
+      *,
+      user:users!drivers_user_id_fkey(name, email, phone)
+    `)
+    .eq('verification_status', 'pending')
+    .order('submitted_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching pending verifications:', error);
+    return [];
+  }
+
+  return (drivers || []) as AdminDriver[];
 }
 
 export async function toggleDriverOnline(
