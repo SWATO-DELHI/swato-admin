@@ -107,6 +107,7 @@ export async function POST(request: Request) {
       .insert({
         customer_id: user.id,
         restaurant_id,
+        status: 'pending',
         subtotal,
         delivery_fee: parseFloat(String(deliveryFee)),
         discount,
@@ -116,7 +117,8 @@ export async function POST(request: Request) {
         delivery_lng,
         delivery_instructions,
         payment_method,
-        order_number: `SWT${Date.now()}`, // Temporary, trigger will override
+        payment_status: payment_method === 'cod' || payment_method === 'cash' ? 'pending' : 'paid',
+        order_number: `SWT${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
       })
       .select()
       .single()

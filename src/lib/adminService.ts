@@ -4,7 +4,7 @@
  * Fetches all data from Supabase for the Admin Panel
  *
  * CANONICAL STATUS FLOW:
- * placed → confirmed → preparing → ready → assigned → picked_up → delivered
+ * pending → confirmed → preparing → ready → assigned → picked_up → delivered
  */
 
 import { createClient } from './supabase/client';
@@ -12,7 +12,7 @@ import { createClient } from './supabase/client';
 // ============ ORDER STATUS CONSTANTS ============
 
 export const ORDER_STATUS = {
-  PLACED: 'placed',
+  PENDING: 'pending',
   CONFIRMED: 'confirmed',
   PREPARING: 'preparing',
   READY: 'ready',
@@ -25,7 +25,7 @@ export const ORDER_STATUS = {
 export type OrderStatus = typeof ORDER_STATUS[keyof typeof ORDER_STATUS];
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
-  placed: 'bg-yellow-100 text-yellow-800',
+  pending: 'bg-yellow-100 text-yellow-800',
   confirmed: 'bg-blue-100 text-blue-800',
   preparing: 'bg-orange-100 text-orange-800',
   ready: 'bg-purple-100 text-purple-800',
@@ -119,6 +119,8 @@ export interface AdminRestaurant {
   menu_item_count?: number;
 }
 
+export type DriverVerificationStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
+
 export interface AdminDriver {
   id: string;
   user_id: string;
@@ -147,10 +149,16 @@ export interface AdminDriver {
     lng: number;
     updated_at: string;
   } | null;
+  // Verification fields
+  verification_status: DriverVerificationStatus | null;
+  rejection_reason: string | null;
+  submitted_at: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
 }
 
 export interface OrderStats {
-  placed: number;
+  pending: number;
   confirmed: number;
   preparing: number;
   ready: number;
@@ -245,14 +253,14 @@ export async function fetchOrderStats(): Promise<OrderStats> {
   if (error) {
     console.error('Error fetching order stats:', error);
     return {
-      placed: 0, confirmed: 0, preparing: 0, ready: 0,
+      pending: 0, confirmed: 0, preparing: 0, ready: 0,
       assigned: 0, picked_up: 0, delivered: 0, cancelled: 0, total: 0,
       todayDelivered: 0, todayRevenue: 0
     };
   }
 
   const stats: OrderStats = {
-    placed: 0, confirmed: 0, preparing: 0, ready: 0,
+    pending: 0, confirmed: 0, preparing: 0, ready: 0,
     assigned: 0, picked_up: 0, delivered: 0, cancelled: 0, total: 0,
     todayDelivered: 0, todayRevenue: 0
   };
@@ -260,7 +268,7 @@ export async function fetchOrderStats(): Promise<OrderStats> {
   (statusCounts || []).forEach((order: { status: string; total: number }) => {
     stats.total++;
     switch (order.status) {
-      case 'placed': stats.placed++; break;
+      case 'pending': stats.pending++; break;
       case 'confirmed': stats.confirmed++; break;
       case 'preparing': stats.preparing++; break;
       case 'ready': stats.ready++; break;
@@ -501,6 +509,23 @@ export async function fetchAllDrivers(): Promise<AdminDriver[]> {
     return [];
   }
 
+  console.log("🔍 Debug: Raw drivers data from database:", JSON.stringify(drivers?.slice(0, 1), null, 2));
+  
+  // Check for image URLs in the fetched data
+  if (drivers && drivers.length > 0) {
+    const driverWithImages = drivers.find(d => d.license_image_url || d.rc_image_url || d.insurance_image_url);
+    if (driverWithImages) {
+      console.log("📸 Found driver with images:", {
+        id: driverWithImages.id,
+        license_image_url: driverWithImages.license_image_url,
+        rc_image_url: driverWithImages.rc_image_url,
+        insurance_image_url: driverWithImages.insurance_image_url
+      });
+    } else {
+      console.log("❌ No drivers found with image URLs");
+    }
+  }
+
   // Get current locations
   const driverIds = (drivers || []).map(d => d.id);
 
@@ -599,6 +624,119 @@ export async function verifyDriver(
   return { success: true };
 }
 
+/**
+ * Approve a driver's verification
+ */
+export async function approveDriverVerification(
+  driverId: string,
+  adminUserId?: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from('drivers')
+    .update({
+      verification_status: 'approved',
+      is_verified: true,
+      verified_at: new Date().toISOString(),
+      verified_by: adminUserId || null,
+      rejection_reason: null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', driverId);
+
+  if (error) {
+    console.error('Error approving driver:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Reject a driver's verification
+ */
+export async function rejectDriverVerification(
+  driverId: string,
+  reason: string,
+  adminUserId?: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from('drivers')
+    .update({
+      verification_status: 'rejected',
+      is_verified: false,
+      rejection_reason: reason,
+      verified_at: new Date().toISOString(),
+      verified_by: adminUserId || null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', driverId);
+
+  if (error) {
+    console.error('Error rejecting driver:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Suspend a driver
+ */
+export async function suspendDriver(
+  driverId: string,
+  reason: string,
+  adminUserId?: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from('drivers')
+    .update({
+      verification_status: 'suspended',
+      is_verified: false,
+      is_online: false,
+      rejection_reason: reason,
+      verified_at: new Date().toISOString(),
+      verified_by: adminUserId || null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', driverId);
+
+  if (error) {
+    console.error('Error suspending driver:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Get pending driver verifications
+ */
+export async function fetchPendingDriverVerifications(): Promise<AdminDriver[]> {
+  const supabase = createClient();
+
+  const { data: drivers, error } = await supabase
+    .from('drivers')
+    .select(`
+      *,
+      user:users!drivers_user_id_fkey(name, email, phone)
+    `)
+    .eq('verification_status', 'pending')
+    .order('submitted_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching pending verifications:', error);
+    return [];
+  }
+
+  return (drivers || []) as AdminDriver[];
+}
+
 export async function toggleDriverOnline(
   driverId: string,
   isOnline: boolean
@@ -637,9 +775,166 @@ export async function fetchDashboardStats(): Promise<{
   return { orders, restaurants, drivers };
 }
 
+// ============ DELIVERY MANAGEMENT ============
+
+export async function fetchActiveDeliveries() {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select(`
+      *,
+      customer:users!orders_customer_id_fkey(name, phone),
+      restaurant:restaurants!orders_restaurant_id_fkey(name, address, lat, lng),
+      driver:drivers!orders_driver_id_fkey(
+        id,
+        current_lat,
+        current_lng,
+        vehicle_type,
+        vehicle_number,
+        user:users!drivers_user_id_fkey(name, phone)
+      )
+    `)
+    .in('status', ['assigned', 'picked_up'])
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching active deliveries:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function fetchDeliveryRequests(orderId: string) {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('delivery_requests')
+    .select(`
+      *,
+      driver:drivers!delivery_requests_driver_id_fkey(
+        id,
+        vehicle_type,
+        vehicle_number,
+        rating,
+        user:users!drivers_user_id_fkey(name, phone)
+      )
+    `)
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching delivery requests:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function adminAssignDriver(
+  orderId: string,
+  driverId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  // Try atomic RPC first
+  const { error: rpcError } = await supabase.rpc('accept_delivery', {
+    p_order_id: orderId,
+    p_driver_id: driverId,
+  });
+
+  if (!rpcError) {
+    return { success: true };
+  }
+
+  console.warn('RPC assign failed, using direct update:', rpcError);
+
+  // Fallback to direct operations
+  const { error } = await supabase
+    .from('orders')
+    .update({
+      driver_id: driverId,
+      status: 'assigned',
+      driver_assigned_at: new Date().toISOString(),
+    })
+    .eq('id', orderId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  await supabase
+    .from('drivers')
+    .update({ current_order_id: orderId })
+    .eq('id', driverId);
+
+  return { success: true };
+}
+
+export async function fetchAvailableDrivers() {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('drivers')
+    .select(`
+      id,
+      user_id,
+      vehicle_type,
+      vehicle_number,
+      rating,
+      total_deliveries,
+      is_online,
+      is_verified,
+      current_lat,
+      current_lng,
+      current_order_id,
+      user:users!drivers_user_id_fkey(name, phone)
+    `)
+    .eq('is_verified', true)
+    .is('current_order_id', null)
+    .order('rating', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching available drivers:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// ============ PICKUP OTP MANAGEMENT ============
+
+export async function fetchPickupOTP(orderId: string) {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('pickup_otps')
+    .select('*')
+    .eq('order_id', orderId)
+    .eq('is_used', false)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error) {
+    // Fallback: check orders table
+    const { data: order } = await supabase
+      .from('orders')
+      .select('pickup_otp')
+      .eq('id', orderId)
+      .single();
+
+    return order?.pickup_otp || null;
+  }
+
+  return data?.otp_code || null;
+}
+
 // ============ REAL-TIME SUBSCRIPTIONS ============
 
-export function subscribeToOrders(callback: (order: AdminOrder) => void) {
+export function subscribeToOrders(callback: (payload: { eventType: string; order: any }) => void) {
   const supabase = createClient();
 
   return supabase
@@ -648,13 +943,8 @@ export function subscribeToOrders(callback: (order: AdminOrder) => void) {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'orders' },
       (payload) => {
-        console.log('📡 Admin: Order change detected', payload);
-        // Fetch full order with joins
-        fetchAllOrders(1).then(orders => {
-          if (orders.length > 0) {
-            callback(orders[0]);
-          }
-        });
+        console.log('📡 Admin: Order change detected', payload.eventType, payload);
+        callback({ eventType: payload.eventType, order: payload.new || payload.old });
       }
     )
     .subscribe();

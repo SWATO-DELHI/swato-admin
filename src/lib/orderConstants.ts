@@ -2,16 +2,15 @@
  * Order Status Constants - Production-Ready Flow
  *
  * CANONICAL STATUS FLOW:
- * placed → confirmed → preparing → ready → assigned → picked_up → delivered
+ * pending → confirmed → preparing → ready → assigned → picked_up → delivered
  *
  * Alternative flows:
- * - Any status → cancelled (with reason)
- * - placed → auto_cancelled (restaurant timeout)
+ * - Any active status → cancelled (with reason)
  * - assigned → ready (driver no-show, reassignment)
  */
 
 export const ORDER_STATUS = {
-  PLACED: 'placed',
+  PENDING: 'pending',
   CONFIRMED: 'confirmed',
   PREPARING: 'preparing',
   READY: 'ready',
@@ -32,7 +31,7 @@ export const ORDER_STATUS_CONFIG: Record<OrderStatus, {
   icon: string;
   description: string;
 }> = {
-  placed: {
+  pending: {
     label: 'Order Placed',
     step: 1,
     color: 'text-yellow-800',
@@ -105,7 +104,7 @@ export function getStatusStep(status: string): number {
 
 // Get status display info
 export function getStatusDisplay(status: string) {
-  return ORDER_STATUS_CONFIG[status as OrderStatus] || ORDER_STATUS_CONFIG.placed;
+  return ORDER_STATUS_CONFIG[status as OrderStatus] || ORDER_STATUS_CONFIG.pending;
 }
 
 // Check if order is active (not completed or cancelled)
@@ -115,13 +114,13 @@ export function isOrderActive(status: string): boolean {
 
 // Check if order can be cancelled
 export function canCancelOrder(status: string): boolean {
-  return ['placed', 'confirmed'].includes(status);
+  return ['pending', 'confirmed'].includes(status);
 }
 
 // Get next status in flow
 export function getNextStatus(currentStatus: string): string | null {
   const flow: Record<string, string> = {
-    placed: 'confirmed',
+    pending: 'confirmed',
     confirmed: 'preparing',
     preparing: 'ready',
     ready: 'assigned',

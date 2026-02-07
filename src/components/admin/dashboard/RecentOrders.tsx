@@ -19,7 +19,7 @@ interface RecentOrdersProps {
 }
 
 const statusColors: Record<string, string> = {
-  placed: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+  pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
   confirmed: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
   preparing: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
   ready: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',

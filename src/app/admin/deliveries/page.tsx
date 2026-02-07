@@ -20,7 +20,7 @@ export default async function DeliveriesPage() {
         user:users!drivers_user_id_fkey(name, phone)
       )
     `)
-    .in('status', ['picked', 'ready', 'preparing'])
+    .in('status', ['picked_up', 'assigned', 'ready', 'preparing'])
     .not('driver_id', 'is', null)
     .order('created_at', { ascending: false })
 

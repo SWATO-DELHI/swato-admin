@@ -32,7 +32,7 @@ export function LiveOrdersCard({ initialPendingOrders }: LiveOrdersCardProps) {
           const { count } = await supabase
             .from('orders')
             .select('*', { count: 'exact', head: true })
-            .in('status', ['placed', 'confirmed', 'preparing'])
+            .in('status', ['pending', 'confirmed', 'preparing'])
 
           if (count !== null) {
             setPendingOrders(count)
