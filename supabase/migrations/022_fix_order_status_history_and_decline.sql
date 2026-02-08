@@ -126,6 +126,14 @@ BEGIN
     ALTER TABLE public.orders ADD COLUMN pickup_otp TEXT;
     RAISE NOTICE 'Added pickup_otp column to orders';
   END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'public'
+                 AND table_name = 'orders'
+                 AND column_name = 'delivery_otp') THEN
+    ALTER TABLE public.orders ADD COLUMN delivery_otp TEXT;
+    RAISE NOTICE 'Added delivery_otp column to orders';
+  END IF;
 END $$;
 
 -- ============================================
@@ -184,6 +192,7 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_order RECORD;
+  v_delivery_otp TEXT;
 BEGIN
   -- Get order and check OTP
   SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
@@ -197,9 +206,14 @@ BEGIN
     RETURN false;
   END IF;
 
-  -- OTP matches — update order to picked_up
+  -- Generate a 4-digit delivery OTP for customer verification at drop-off
+  v_delivery_otp := LPAD(FLOOR(RANDOM() * 9000 + 1000)::TEXT, 4, '0');
+
+  -- OTP matches — update order to picked_up with delivery OTP
   UPDATE public.orders
   SET status = 'picked_up',
+      delivery_otp = v_delivery_otp,
+      picked_up_at = NOW(),
       updated_at = NOW()
   WHERE id = p_order_id;
 
@@ -227,9 +241,9 @@ BEGIN
     VALUES (
       v_order.customer_id,
       'order_update',
-      '🚗 Driver is on the way!',
-      format('Order #%s has been picked up. Your driver is heading to you now.', v_order.order_number),
-      jsonb_build_object('order_id', p_order_id, 'status', 'picked_up')
+      '🚗 Your order is on the way!',
+      format('Order #%s has been picked up. Your delivery OTP is %s — share it with the driver at delivery.', v_order.order_number, v_delivery_otp),
+      jsonb_build_object('order_id', p_order_id, 'status', 'picked_up', 'delivery_otp', v_delivery_otp)
     );
   EXCEPTION WHEN OTHERS THEN
     NULL;
@@ -261,3 +275,30 @@ INNER JOIN public.drivers d ON d.user_id = au.id
 LEFT JOIN public.users u ON u.id = au.id
 WHERE u.id IS NULL
 ON CONFLICT (id) DO NOTHING;
+
+-- ============================================
+-- 8. CREATE: order_reviews table for customer feedback
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.order_reviews (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID REFERENCES public.orders(id),
+  food_rating INTEGER CHECK (food_rating BETWEEN 1 AND 5),
+  delivery_rating INTEGER CHECK (delivery_rating BETWEEN 1 AND 5),
+  comment TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.order_reviews ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'order_reviews' AND policyname = 'order_reviews_insert') THEN
+    CREATE POLICY order_reviews_insert ON public.order_reviews FOR INSERT TO authenticated WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'order_reviews' AND policyname = 'order_reviews_select') THEN
+    CREATE POLICY order_reviews_select ON public.order_reviews FOR SELECT TO authenticated USING (true);
+  END IF;
+END $$;
+
+GRANT ALL ON public.order_reviews TO authenticated;
+GRANT ALL ON public.order_reviews TO service_role;
