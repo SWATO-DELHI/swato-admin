@@ -253,7 +253,7 @@ export default function RestaurantsPage() {
                         <div className="space-y-1 text-sm">
                           <div className="flex items-center gap-1">
                             <Phone className="h-3 w-3" />
-                            {restaurant.phone || 'N/A'}
+                            {restaurant.owner_phone || 'N/A'}
                           </div>
                           <div className="flex items-center gap-1">
                             <Mail className="h-3 w-3" />
@@ -355,7 +355,7 @@ export default function RestaurantsPage() {
                     <div><span className="text-gray-500">Cuisine:</span> {selectedRestaurant.cuisine_type || 'Multi-cuisine'}</div>
                     <div><span className="text-gray-500">City:</span> {selectedRestaurant.city || 'N/A'}</div>
                     <div className="col-span-2"><span className="text-gray-500">Address:</span> {selectedRestaurant.address}</div>
-                    <div><span className="text-gray-500">Phone:</span> {selectedRestaurant.phone || 'N/A'}</div>
+                    <div><span className="text-gray-500">Phone:</span> {selectedRestaurant.owner_phone || 'N/A'}</div>
                     <div><span className="text-gray-500">Email:</span> {selectedRestaurant.email || 'N/A'}</div>
                     <div><span className="text-gray-500">Min Order:</span> ₹{selectedRestaurant.min_order || 0}</div>
                     <div><span className="text-gray-500">Delivery Fee:</span> ₹{selectedRestaurant.delivery_fee || 0}</div>

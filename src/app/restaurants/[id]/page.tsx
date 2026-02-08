@@ -263,7 +263,7 @@ export default function RestaurantDetailsPage() {
                 </div>
                 <div className="flex items-center">
                   <Phone className="h-4 w-4 mr-1" />
-                  {restaurant.phone}
+                  {restaurant.owner_phone}
                 </div>
               </div>
             </div>
