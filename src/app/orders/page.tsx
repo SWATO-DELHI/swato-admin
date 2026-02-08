@@ -341,7 +341,7 @@ export default function OrdersPage() {
                   <CardContent className="py-2">
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div><span className="text-gray-500">Name:</span> {selectedOrder.restaurant?.name}</div>
-                      <div><span className="text-gray-500">Phone:</span> {selectedOrder.restaurant?.phone || 'N/A'}</div>
+                      <div><span className="text-gray-500">Phone:</span> {selectedOrder.restaurant?.owner_phone || 'N/A'}</div>
                     </div>
                   </CardContent>
                 </Card>

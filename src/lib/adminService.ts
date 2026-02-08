@@ -50,7 +50,7 @@ export interface AdminOrder {
   restaurant: {
     name: string;
     address: string;
-    phone: string;
+    owner_phone: string;
   } | null;
   driver_id: string | null;
   driver: {
@@ -89,7 +89,7 @@ export interface AdminRestaurant {
   cuisine_type: string | null;
   address: string;
   city: string | null;
-  phone: string | null;
+  owner_phone: string | null;
   email: string | null;
   owner_id: string | null;
   owner: {
@@ -196,7 +196,7 @@ export async function fetchAllOrders(limit = 50): Promise<AdminOrder[]> {
     .select(`
       *,
       customer:users!orders_customer_id_fkey(name, email, phone),
-      restaurant:restaurants!orders_restaurant_id_fkey(name, address, phone),
+      restaurant:restaurants!orders_restaurant_id_fkey(name, address, owner_phone),
       driver:drivers!orders_driver_id_fkey(
         id,
         vehicle_number,
@@ -223,7 +223,7 @@ export async function fetchOrdersByStatus(status: string, limit = 50): Promise<A
     .select(`
       *,
       customer:users!orders_customer_id_fkey(name, email, phone),
-      restaurant:restaurants!orders_restaurant_id_fkey(name, address, phone),
+      restaurant:restaurants!orders_restaurant_id_fkey(name, address, owner_phone),
       driver:drivers!orders_driver_id_fkey(
         id,
         vehicle_number,
