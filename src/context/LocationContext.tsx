@@ -2,16 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-// Extend the global Window interface to include geolocation error types
-declare global {
-  interface GeolocationPositionError {
-    readonly code: number;
-    readonly message: string;
-    readonly PERMISSION_DENIED: number;
-    readonly POSITION_UNAVAILABLE: number;
-    readonly TIMEOUT: number;
-  }
-}
+// GeolocationPositionError (PERMISSION_DENIED, POSITION_UNAVAILABLE, TIMEOUT) is defined in DOM lib
 
 interface LocationData {
   latitude: number;

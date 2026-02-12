@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { CartProvider } from "@/context/CartContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,8 +48,9 @@ export default function RootLayout({
           }}
         />
         <ThemeProvider>
-          {children}
-          <Toaster
+          <CartProvider>
+            {children}
+            <Toaster
             position="top-right"
             richColors
             toastOptions={{
@@ -59,6 +61,7 @@ export default function RootLayout({
               },
             }}
           />
+          </CartProvider>
         </ThemeProvider>
       </body>
     </html>

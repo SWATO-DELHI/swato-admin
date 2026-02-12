@@ -134,14 +134,16 @@ export default function RestaurantMenuPage() {
   const router = useRouter();
   const restaurantId = params.id as string;
 
-  const [restaurant, setRestaurant] = useState(null);
-  const [menuItems, setMenuItems] = useState([]);
-  const [filteredMenuItems, setFilteredMenuItems] = useState([]);
+  type RestaurantItem = { id: string; name: string; description?: string; price: number; originalPrice?: number | null; category: string; isVeg?: boolean; isAvailable: boolean; image: string; preparationTime?: number };
+  type RestaurantData = { id: string; name: string; image: string; menu: RestaurantItem[] };
+  const [restaurant, setRestaurant] = useState<RestaurantData | null>(null);
+  const [menuItems, setMenuItems] = useState<RestaurantItem[]>([]);
+  const [filteredMenuItems, setFilteredMenuItems] = useState<RestaurantItem[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [availabilityFilter, setAvailabilityFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
+  const [editingItem, setEditingItem] = useState<RestaurantItem | null>(null);
 
   const [newMenuItem, setNewMenuItem] = useState({
     name: '',
@@ -182,7 +184,7 @@ export default function RestaurantMenuPage() {
     if (searchQuery) {
       filtered = filtered.filter(item =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchQuery.toLowerCase())
+        (item.description ?? '').toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -203,10 +205,7 @@ export default function RestaurantMenuPage() {
     setMenuItems([...menuItems, item]);
 
     // Update restaurant data
-    setRestaurant(prev => ({
-      ...prev,
-      menu: [...prev.menu, item]
-    }));
+    setRestaurant(prev => (prev ? { ...prev, menu: [...prev.menu, item] } : null));
 
     setNewMenuItem({
       name: '',
@@ -222,18 +221,18 @@ export default function RestaurantMenuPage() {
     setIsAddItemOpen(false);
   };
 
-  const handleEditMenuItem = (item) => {
+  const handleEditMenuItem = (item: RestaurantItem) => {
     setEditingItem(item);
     setNewMenuItem({
       name: item.name,
-      description: item.description,
+      description: item.description ?? '',
       price: item.price.toString(),
       originalPrice: item.originalPrice?.toString() || '',
       category: item.category,
-      isVeg: item.isVeg,
+      isVeg: item.isVeg ?? true,
       isAvailable: item.isAvailable,
       image: item.image,
-      preparationTime: item.preparationTime.toString()
+      preparationTime: (item.preparationTime ?? 0).toString()
     });
     setIsAddItemOpen(true);
   };
@@ -256,10 +255,7 @@ export default function RestaurantMenuPage() {
     setMenuItems(updatedMenuItems);
 
     // Update restaurant data
-    setRestaurant(prev => ({
-      ...prev,
-      menu: updatedMenuItems
-    }));
+    setRestaurant(prev => (prev ? { ...prev, menu: updatedMenuItems } : null));
 
     setEditingItem(null);
     setIsAddItemOpen(false);
@@ -276,20 +272,17 @@ export default function RestaurantMenuPage() {
     });
   };
 
-  const handleDeleteMenuItem = (itemId) => {
+  const handleDeleteMenuItem = (itemId: string) => {
     if (confirm('Are you sure you want to delete this menu item?')) {
       const updatedMenuItems = menuItems.filter(item => item.id !== itemId);
       setMenuItems(updatedMenuItems);
 
       // Update restaurant data
-      setRestaurant(prev => ({
-        ...prev,
-        menu: updatedMenuItems
-      }));
+      setRestaurant(prev => (prev ? { ...prev, menu: updatedMenuItems } : null));
     }
   };
 
-  const toggleItemAvailability = (itemId) => {
+  const toggleItemAvailability = (itemId: string) => {
     const updatedMenuItems = menuItems.map(item =>
       item.id === itemId ? { ...item, isAvailable: !item.isAvailable } : item
     );
@@ -297,10 +290,7 @@ export default function RestaurantMenuPage() {
     setMenuItems(updatedMenuItems);
 
     // Update restaurant data
-    setRestaurant(prev => ({
-      ...prev,
-      menu: updatedMenuItems
-    }));
+    setRestaurant(prev => (prev ? { ...prev, menu: updatedMenuItems } : null));
   };
 
   if (!restaurant) {

@@ -160,9 +160,10 @@ export default function RestaurantDetailsPage() {
   const restaurantId = params.id as string;
   const { addToCart, cartItems, setIsCartOpen } = useCart();
 
-  const [restaurant, setRestaurant] = useState(null);
+  type RestaurantData = (typeof mockRestaurants)[0];
+  const [restaurant, setRestaurant] = useState<RestaurantData | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [quantities, setQuantities] = useState({});
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const foundRestaurant = mockRestaurants.find(r => r.id === restaurantId);
@@ -177,7 +178,8 @@ export default function RestaurantDetailsPage() {
 
   const categories = ['All', ...new Set(restaurant?.menu.map(item => item.category) || [])];
 
-  const handleAddToCart = (item) => {
+  const handleAddToCart = (item: { id: string; name: string; price: number; image: string; isVeg?: boolean }) => {
+    if (!restaurant) return;
     addToCart({
       id: item.id,
       name: item.name,
@@ -185,19 +187,19 @@ export default function RestaurantDetailsPage() {
       image: item.image,
       restaurant: restaurant.name,
       quantity: 1,
-      isVeg: item.isVeg
+      isVeg: item.isVeg ?? false
     });
     setIsCartOpen(true);
   };
 
-  const handleQuantityChange = (itemId, change) => {
+  const handleQuantityChange = (itemId: string, change: number) => {
     setQuantities(prev => ({
       ...prev,
       [itemId]: Math.max(0, (prev[itemId] || 0) + change)
     }));
   };
 
-  const getItemQuantity = (itemId) => {
+  const getItemQuantity = (itemId: string) => {
     const cartItem = cartItems.find(item => item.id === itemId);
     return cartItem?.quantity || 0;
   };
@@ -263,7 +265,7 @@ export default function RestaurantDetailsPage() {
                 </div>
                 <div className="flex items-center">
                   <Phone className="h-4 w-4 mr-1" />
-                  {restaurant.owner_phone}
+                  {restaurant.phone}
                 </div>
               </div>
             </div>

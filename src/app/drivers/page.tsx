@@ -201,85 +201,11 @@ export default function DriversPage() {
     setActionLoading(false);
   };
 
-  const handleViewDriver = (driver: AdminDriver) => {
-    setSelectedDriver(driver);
-    setRejectionReason('');
-    setIsRejecting(false);
-    setIsDetailOpen(true);
-  };
-
   const handleVerifyDriver = async (driverId: string) => {
     const result = await verifyDriver(driverId);
     if (result.success) {
       loadData();
       setIsDetailOpen(false);
-    }
-  };
-
-  const handleApproveDriver = async (driverId: string) => {
-    setActionLoading(true);
-    const result = await approveDriverVerification(driverId);
-    setActionLoading(false);
-    if (result.success) {
-      loadData();
-      setIsDetailOpen(false);
-    }
-  };
-
-  const handleRejectDriver = async (driverId: string) => {
-    if (!rejectionReason.trim()) {
-      alert('Please provide a reason for rejection');
-      return;
-    }
-    setActionLoading(true);
-    const result = await rejectDriverVerification(driverId, rejectionReason);
-    setActionLoading(false);
-    if (result.success) {
-      setRejectionReason('');
-      setIsRejecting(false);
-      loadData();
-      setIsDetailOpen(false);
-    }
-  };
-
-  const handleSuspendDriver = async (driverId: string) => {
-    if (!rejectionReason.trim()) {
-      alert('Please provide a reason for suspension');
-      return;
-    }
-    setActionLoading(true);
-    const result = await suspendDriver(driverId, rejectionReason);
-    setActionLoading(false);
-    if (result.success) {
-      setRejectionReason('');
-      setIsRejecting(false);
-      loadData();
-      setIsDetailOpen(false);
-    }
-  };
-
-  const handleToggleOnline = async (driverId: string, currentStatus: boolean) => {
-    const result = await toggleDriverOnline(driverId, !currentStatus);
-    if (result.success) {
-      loadData();
-    }
-  };
-
-  const getVerificationStatusBadge = (driver: AdminDriver) => {
-    if (!driver.submitted_at) {
-      return <Badge className="bg-gray-100 text-gray-800">Not Submitted</Badge>;
-    }
-    switch (driver.verification_status) {
-      case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
-      case 'approved':
-        return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>;
-      case 'rejected':
-        return <Badge className="bg-red-100 text-red-800"><XCircle className="h-3 w-3 mr-1" />Rejected</Badge>;
-      case 'suspended':
-        return <Badge className="bg-orange-100 text-orange-800"><AlertCircle className="h-3 w-3 mr-1" />Suspended</Badge>;
-      default:
-        return <Badge className="bg-gray-100 text-gray-800">Unknown</Badge>;
     }
   };
 

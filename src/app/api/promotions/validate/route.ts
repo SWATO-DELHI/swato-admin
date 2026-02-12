@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     }
 
     // Check usage limit
-    if (promo.usage_limit && promo.used_count >= promo.usage_limit) {
+    if (promo.usage_limit != null && (promo.used_count ?? 0) >= promo.usage_limit) {
       return NextResponse.json({ error: 'Promo code usage limit reached' }, { status: 400 })
     }
 

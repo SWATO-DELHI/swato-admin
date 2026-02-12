@@ -60,7 +60,7 @@ export function DriverDetailActions({ driver }: DriverDetailActionsProps) {
         on_hold: hold,
         hold_started_at: hold ? new Date().toISOString() : null,
         hold_ended_at: hold ? null : new Date().toISOString(),
-      })
+      } as Record<string, unknown>)
       .eq('id', driver.id)
 
     if (error) {

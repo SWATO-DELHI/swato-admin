@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Plus, Edit, Star, MapPin, Phone, Clock, Filter, RefreshCw,
@@ -24,7 +24,7 @@ import {
   RestaurantStats
 } from '@/lib/adminService';
 
-export default function RestaurantsPage() {
+function RestaurantsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const selectedFood = searchParams.get('food');
@@ -540,5 +540,13 @@ export default function RestaurantsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function RestaurantsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <RestaurantsPageContent />
+    </Suspense>
   );
 }

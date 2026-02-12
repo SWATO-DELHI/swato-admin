@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -177,7 +177,7 @@ const sortOptions = [
   { value: 'delivery_time', label: 'Delivery Time' }
 ];
 
-export default function SearchPage() {
+function SearchPageContent() {
   const searchParams = useSearchParams();
   const query = searchParams.get('q') || '';
   const { cartItems, isCartOpen, setIsCartOpen } = useCart();
@@ -399,8 +399,13 @@ export default function SearchPage() {
   );
 }
 
-
-
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <SearchPageContent />
+    </Suspense>
+  );
+}
 
 
 

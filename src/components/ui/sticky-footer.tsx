@@ -215,8 +215,14 @@ function AnimatedContainer({
 }: AnimatedContainerProps) {
   const shouldReduceMotion = useReducedMotion();
 
+  // When reducing motion, render plain div with only HTML attributes (motion props are incompatible)
   if (shouldReduceMotion) {
-    return <div {...props}>{children}</div>;
+    const { className, ...rest } = props
+    return (
+      <div className={className} {...(rest as React.HTMLAttributes<HTMLDivElement>)}>
+        {children}
+      </div>
+    )
   }
 
   return (
