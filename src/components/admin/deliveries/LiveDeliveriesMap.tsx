@@ -154,7 +154,7 @@ export function LiveDeliveriesMap({ deliveries: initialDeliveries }: LiveDeliver
                     if (delivery.driver?.current_lat && delivery.driver?.current_lng) {
                         return (
                             <AdvancedMarker
-                                key={`driver-${delivery.driver.id}`}
+                                key={`driver-${delivery.id}`}
                                 position={{ lat: delivery.driver.current_lat, lng: delivery.driver.current_lng }}
                                 onClick={() => setSelectedDelivery(delivery)}
                             >
